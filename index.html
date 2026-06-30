@@ -144,7 +144,7 @@
   @media(max-width:600px){.mbody{grid-template-columns:1fr}.wrap{padding:14px}}
   @media print{.toolbar,.ico-btns,.card .foot,header .sub,#githubStatusBar{display:none}.kpi{break-inside:avoid}}
   /* ===== GitHub live status bar (matches screenshot) ===== */
-  #githubStatusBar{display:flex;align-items:center;gap:12px;padding:8px 28px;background:#0c57d0;color:#fff;font-size:12.5px;font-weight:500;border-bottom:1px solid rgba(0,0,0,.15);flex-wrap:wrap}
+  #githubStatusBar{display:flex;align-items:center;gap:12px;padding:8px 28px;color:#fff;font-size:12.5px;font-weight:500;border-bottom:1px solid rgba(0,0,0,.15);flex-wrap:wrap}
   #githubStatusBar.status-connected{background:#0c57d0}
   #githubStatusBar.status-warning{background:#b07000}
   #githubStatusBar.status-error{background:#8a1f24}
@@ -159,12 +159,12 @@
   #githubSpin{display:none;width:12px;height:12px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:ghspin .8s linear infinite}
   #githubSpin.show{display:inline-block}
   @keyframes ghspin{to{transform:rotate(360deg)}}
-  /* settings modal helpers */
   .help{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
   .help code{background:#f1f3f5;padding:1px 5px;border-radius:4px;font-size:11.5px}
-  .test-result{padding:8px 12px;border-radius:6px;font-size:12.5px;margin-top:8px;display:none}
+  .test-result{padding:8px 12px;border-radius:6px;font-size:12.5px;margin-top:8px;display:none;line-height:1.5}
   .test-result.ok{display:block;background:#e6f7e6;color:#155724;border:1px solid #b7e1b7}
   .test-result.bad{display:block;background:#fdeeee;color:#8a1f24;border:1px solid #f0c4c5}
+  .test-result.info{display:block;background:#e9f0fb;color:#0b4a6f;border:1px solid #d2e0f2}
 </style>
 </head>
 <body>
@@ -266,24 +266,24 @@
     <div class="mbody">
       <div class="fld full">
         <label>GitHub Personal Access Token</label>
-        <input type="password" id="s_token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <input type="password" id="s_token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
         <div class="help">
           🔐 Get this from GitHub: <b>Profile → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token</b>.
-          Give it the <code>repo</code> scope. Paste it here — it stays in this browser's local storage and is never displayed elsewhere on the dashboard.
+          Give it the <code>repo</code> scope only. Paste it here — it stays in this browser's local storage and is never displayed elsewhere.
         </div>
       </div>
       <div class="fld full">
         <label>Repository (owner/name)</label>
-        <input id="s_repo" placeholder="Hugh-ReeceJansen/microsoft-contacts-dashboard">
+        <input id="s_repo" placeholder="Hugh-ReeceJansen/microsoft-contacts-dashboard" spellcheck="false">
         <div class="help">Format: <code>owner/repository</code> — the repo where <code>contacts.json</code> will be saved.</div>
       </div>
       <div class="fld">
         <label>Branch</label>
-        <input id="s_branch" placeholder="main" value="main">
+        <input id="s_branch" placeholder="main" value="main" spellcheck="false">
       </div>
       <div class="fld">
         <label>Data file path</label>
-        <input id="s_file" placeholder="contacts.json" value="contacts.json">
+        <input id="s_file" placeholder="contacts.json" value="contacts.json" spellcheck="false">
       </div>
       <div class="fld full">
         <label>Auto-sync on every change</label>
@@ -295,7 +295,7 @@
     </div>
     <div class="mfoot">
       <button class="btn danger" id="sClear">Clear token</button>
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn" id="sTest">🔌 Test connection</button>
         <button class="btn" id="sPull">⇩ Pull from GitHub</button>
         <button class="btn ghost" id="sCancel">Cancel</button>
@@ -637,7 +637,7 @@ function shareEmail(){
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Restore the original contact list? This discards your saved edits.')){ data=SEED.map(migrate); persist(); render(); toast('↺ Restored original data'); } };
 
 /* ============================================================
-   ===========  GITHUB INTEGRATION  ===========================
+   ===========  GITHUB INTEGRATION (Build 12)  ================
    Live status: GREEN = connected, YELLOW = warning, RED = none
    Token & config are stored only in this browser (localStorage).
    ============================================================ */
@@ -646,15 +646,16 @@ const GH_SYNC_KEY = 'manco_github_lastsync_v1';
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 // 🔑 WHERE TO INSERT YOUR GITHUB TOKEN:
 //    You do NOT paste it here in the code.
-//    Instead, click the ⚙ Settings button on the dashboard,
+//    Click the ⚙ Settings button on the dashboard,
 //    paste the token into the "GitHub Personal Access Token"
 //    field, and press "Save & connect". The token is stored
 //    privately in this browser's localStorage under the key
 //    'manco_github_cfg_v1' and is never displayed elsewhere.
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 let ghCfg = loadGhCfg();
-let ghStatus = 'disconnected'; // 'connected' | 'warning' | 'disconnected'
+let ghStatus = 'disconnected';
 let ghSyncing = false;
+const IS_FILE_PROTOCOL = (location.protocol === 'file:');
 
 function loadGhCfg(){
   try{
@@ -665,7 +666,19 @@ function loadGhCfg(){
 }
 function saveGhCfg(){ localStorage.setItem(GH_CFG_KEY, JSON.stringify(ghCfg)); }
 
-function setGhStatus(state, text, opts={}){
+// Aggressive sanitiser — strips spaces, newlines, CR, tabs, zero-width chars from tokens.
+// This fixes the most common "Failed to fetch" cause: invisible whitespace from copy-paste.
+function clean(s){ return String(s||'').replace(/[\s\u200B-\u200D\uFEFF]+/g,'').trim(); }
+function cleanRepo(s){
+  return String(s||'').trim()
+    .replace(/^https?:\/\/github\.com\//i,'')
+    .replace(/\.git$/i,'')
+    .replace(/\/$/,'')
+    .replace(/\s+/g,'');
+}
+
+function setGhStatus(state, text, opts){
+  opts = opts||{};
   ghStatus = state;
   const bar = document.getElementById('githubStatusBar');
   const dot = document.getElementById('githubDot');
@@ -677,14 +690,11 @@ function setGhStatus(state, text, opts={}){
   else if(state==='warning'){ bar.classList.add('status-warning'); dot.classList.add('dot-yellow'); }
   else { bar.classList.add('status-error'); dot.classList.add('dot-red'); }
   txt.textContent = text;
-  if(opts.lastSync){
-    sync.textContent = '· Last synced: ' + opts.lastSync;
-  } else if(state==='connected'){
+  if(opts.lastSync){ sync.textContent = '· Last synced: ' + opts.lastSync; }
+  else if(state==='connected'){
     const ls = localStorage.getItem(GH_SYNC_KEY);
     sync.textContent = ls ? '· Last synced: ' + ls : '';
-  } else {
-    sync.textContent = '';
-  }
+  } else { sync.textContent = ''; }
 }
 function setGhSpin(on){ document.getElementById('githubSpin').classList.toggle('show', !!on); }
 function fmtNow(){
@@ -692,57 +702,88 @@ function fmtNow(){
   return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 }
 
-/* ---- GitHub REST API helpers ---- */
+// Translate raw fetch errors into actionable messages
+function translateFetchError(e){
+  const m = (e && e.message) ? String(e.message) : String(e);
+  if(/Failed to fetch|NetworkError|Network request failed|Load failed/i.test(m)){
+    if(IS_FILE_PROTOCOL){
+      return 'Browser blocked the request because the dashboard is opened from a file:// URL. '
+           + 'Fix: open a terminal in the dashboard folder, run "python -m http.server 8000", '
+           + 'then open http://localhost:8000/ in your browser. Other causes: extension/firewall blocking api.github.com.';
+    }
+    return 'Could not reach api.github.com. Possible causes: no internet, firewall/proxy blocking GitHub, '
+         + 'browser extension (ad-blocker/privacy tool) blocking the request, or token has hidden whitespace. '
+         + 'Try (1) an incognito window, (2) regenerating the token, (3) a different network.';
+  }
+  return m;
+}
+
 function ghHeaders(){
   return {
-    'Authorization': 'token ' + ghCfg.token,
+    'Authorization': 'token ' + clean(ghCfg.token),
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
   };
 }
-function ghApiBase(){ return 'https://api.github.com/repos/' + ghCfg.repo; }
+function ghApiBase(){ return 'https://api.github.com/repos/' + cleanRepo(ghCfg.repo); }
 
-// Test that token + repo + branch are reachable
+function validateCfgForCall(){
+  const tok = clean(ghCfg.token);
+  const repo = cleanRepo(ghCfg.repo);
+  if(!tok) throw new Error('No token saved — open ⚙ Settings');
+  if(!repo) throw new Error('No repository set — open ⚙ Settings');
+  if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw new Error('Repository must be "owner/name" (got "'+repo+'")');
+}
+
 async function ghTestConnection(){
-  if(!ghCfg.token || !ghCfg.repo) throw new Error('Token and repository are required');
-  const r = await fetch(ghApiBase()+'/branches/'+encodeURIComponent(ghCfg.branch), {headers:ghHeaders()});
-  if(r.status===401) throw new Error('Token invalid or expired (401 Unauthorized)');
-  if(r.status===404) throw new Error('Repository or branch not found (404)');
-  if(r.status===403) throw new Error('Forbidden — token may lack the "repo" scope (403)');
+  validateCfgForCall();
+  let r;
+  try{
+    r = await fetch(ghApiBase()+'/branches/'+encodeURIComponent(clean(ghCfg.branch)||'main'), {headers:ghHeaders()});
+  }catch(e){ throw new Error(translateFetchError(e)); }
+  if(r.status===401) throw new Error('Token invalid or expired (401 Unauthorized) — regenerate it on GitHub');
+  if(r.status===404) throw new Error('Repository or branch not found (404). Check repo = "owner/name" and branch exists');
+  if(r.status===403){
+    const j = await r.json().catch(()=>({}));
+    throw new Error('Forbidden (403) — '+(j.message||'token may lack the "repo" scope, or rate limit hit'));
+  }
   if(!r.ok) throw new Error('GitHub returned HTTP '+r.status);
   return true;
 }
 
-// Get current SHA of the data file (needed to update it). Returns null if file doesn't exist yet.
 async function ghGetFileSha(){
-  const url = ghApiBase()+'/contents/'+encodeURIComponent(ghCfg.file)+'?ref='+encodeURIComponent(ghCfg.branch);
-  const r = await fetch(url, {headers:ghHeaders()});
+  const url = ghApiBase()+'/contents/'+encodeURIComponent(clean(ghCfg.file)||'contacts.json')+'?ref='+encodeURIComponent(clean(ghCfg.branch)||'main');
+  let r;
+  try{ r = await fetch(url, {headers:ghHeaders()}); }
+  catch(e){ throw new Error(translateFetchError(e)); }
   if(r.status===404) return null;
   if(!r.ok) throw new Error('Could not read file metadata (HTTP '+r.status+')');
   const j = await r.json();
   return j.sha;
 }
 
-// Push current contacts to GitHub
 async function ghPushData(){
-  if(!ghCfg.token || !ghCfg.repo){ setGhStatus('disconnected','Not Connected to GitHub'); return false; }
+  if(!clean(ghCfg.token) || !cleanRepo(ghCfg.repo)){ setGhStatus('disconnected','Not Connected to GitHub'); return false; }
   if(ghSyncing) return false;
   ghSyncing = true; setGhSpin(true);
   setGhStatus(ghStatus==='connected'?'connected':'warning', 'Syncing to GitHub…');
   try{
     const sha = await ghGetFileSha();
     const body = {
-      message: 'Update contacts.json from MANCO Dashboard ('+fmtNow()+')',
+      message: 'Update '+ (clean(ghCfg.file)||'contacts.json') +' from MANCO Dashboard ('+fmtNow()+')',
       content: btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),
-      branch: ghCfg.branch
+      branch: clean(ghCfg.branch)||'main'
     };
     if(sha) body.sha = sha;
-    const r = await fetch(ghApiBase()+'/contents/'+encodeURIComponent(ghCfg.file), {
-      method:'PUT', headers:Object.assign({'Content-Type':'application/json'}, ghHeaders()), body: JSON.stringify(body)
-    });
-    if(r.status===401){ setGhStatus('warning','GitHub Sync Warning — token rejected'); throw new Error('Token rejected'); }
-    if(r.status===403){ setGhStatus('warning','GitHub Sync Warning — forbidden (check scope)'); throw new Error('Forbidden'); }
-    if(r.status===404){ setGhStatus('warning','GitHub Sync Warning — repository not found'); throw new Error('Repo not found'); }
+    let r;
+    try{
+      r = await fetch(ghApiBase()+'/contents/'+encodeURIComponent(clean(ghCfg.file)||'contacts.json'), {
+        method:'PUT', headers:Object.assign({'Content-Type':'application/json'}, ghHeaders()), body: JSON.stringify(body)
+      });
+    }catch(e){ setGhStatus('warning','GitHub Sync Warning — '+translateFetchError(e)); throw e; }
+    if(r.status===401){ setGhStatus('warning','GitHub Sync Warning — token rejected (401)'); throw new Error('401'); }
+    if(r.status===403){ setGhStatus('warning','GitHub Sync Warning — forbidden (check scope)'); throw new Error('403'); }
+    if(r.status===404){ setGhStatus('warning','GitHub Sync Warning — repository not found'); throw new Error('404'); }
     if(r.status===409 || r.status===422){ setGhStatus('warning','GitHub Sync Warning — conflict, please Pull first'); throw new Error('Conflict'); }
     if(!r.ok){ setGhStatus('warning','GitHub Sync Warning — HTTP '+r.status); throw new Error('HTTP '+r.status); }
     const now = fmtNow();
@@ -757,15 +798,16 @@ async function ghPushData(){
   }
 }
 
-// Pull data from GitHub and replace local
 async function ghPullData(){
-  if(!ghCfg.token || !ghCfg.repo){ toast('⚠ Configure GitHub in ⚙ Settings first'); return; }
+  if(!clean(ghCfg.token) || !cleanRepo(ghCfg.repo)){ toast('⚠ Configure GitHub in ⚙ Settings first'); return; }
   setGhSpin(true);
   setGhStatus(ghStatus, 'Pulling from GitHub…');
   try{
-    const url = ghApiBase()+'/contents/'+encodeURIComponent(ghCfg.file)+'?ref='+encodeURIComponent(ghCfg.branch);
-    const r = await fetch(url, {headers:ghHeaders()});
-    if(r.status===404){ toast('No contacts.json found in repo yet — push first to create it'); setGhStatus('connected','Connected to GitHub (no remote file yet)'); return; }
+    const url = ghApiBase()+'/contents/'+encodeURIComponent(clean(ghCfg.file)||'contacts.json')+'?ref='+encodeURIComponent(clean(ghCfg.branch)||'main');
+    let r;
+    try{ r = await fetch(url, {headers:ghHeaders()}); }
+    catch(e){ setGhStatus('warning','GitHub Sync Warning — '+translateFetchError(e)); return; }
+    if(r.status===404){ toast('No '+(clean(ghCfg.file)||'contacts.json')+' found in repo yet — push first to create it'); setGhStatus('connected','Connected to GitHub (no remote file yet)'); return; }
     if(!r.ok){ setGhStatus('warning','GitHub Sync Warning — pull failed ('+r.status+')'); return; }
     const j = await r.json();
     const raw = decodeURIComponent(escape(atob(j.content.replace(/\n/g,''))));
@@ -785,50 +827,62 @@ async function ghPullData(){
   }
 }
 
-/* ---- hook persist() to auto-push to GitHub ---- */
+// hook persist() to auto-push to GitHub
 const _origPersist = persist;
 persist = function(){
   _origPersist();
-  if(ghCfg.auto && ghCfg.token && ghCfg.repo){ ghPushData(); }
+  if(ghCfg.auto && clean(ghCfg.token) && cleanRepo(ghCfg.repo)){ ghPushData(); }
 };
 
-/* ---- Settings modal wiring ---- */
 function openSettings(){
   document.getElementById('s_token').value  = ghCfg.token  || '';
   document.getElementById('s_repo').value   = ghCfg.repo   || '';
   document.getElementById('s_branch').value = ghCfg.branch || 'main';
   document.getElementById('s_file').value   = ghCfg.file   || 'contacts.json';
   document.getElementById('s_auto').checked = ghCfg.auto !== false;
-  document.getElementById('s_testResult').className='test-result';
-  document.getElementById('s_testResult').textContent='';
+  const r = document.getElementById('s_testResult');
+  r.className='test-result';
+  if(IS_FILE_PROTOCOL){
+    r.className='test-result info';
+    r.innerHTML='ℹ <b>Heads-up — this file is opened via file://</b><br>'
+              + 'Some browsers block GitHub API calls from file:// URLs (you may see "Failed to fetch"). '
+              + 'If you hit that, run <code>python -m http.server 8000</code> in the folder containing this HTML, '
+              + 'then open <b>http://localhost:8000/</b> instead.';
+  } else { r.textContent=''; }
   document.getElementById('settingsOv').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settingsOv').classList.remove('show'); }
 function readSettingsForm(){
-  ghCfg.token  = document.getElementById('s_token').value.trim();
-  ghCfg.repo   = document.getElementById('s_repo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\.git$/,'');
-  ghCfg.branch = document.getElementById('s_branch').value.trim() || 'main';
-  ghCfg.file   = document.getElementById('s_file').value.trim()   || 'contacts.json';
+  ghCfg.token  = clean(document.getElementById('s_token').value);
+  ghCfg.repo   = cleanRepo(document.getElementById('s_repo').value);
+  ghCfg.branch = clean(document.getElementById('s_branch').value) || 'main';
+  ghCfg.file   = (document.getElementById('s_file').value||'').trim() || 'contacts.json';
   ghCfg.auto   = document.getElementById('s_auto').checked;
+  document.getElementById('s_token').value  = ghCfg.token;
+  document.getElementById('s_repo').value   = ghCfg.repo;
+  document.getElementById('s_branch').value = ghCfg.branch;
+  document.getElementById('s_file').value   = ghCfg.file;
 }
 document.getElementById('settingsBtn').onclick = openSettings;
-document.getElementById('manageTokenLink').onclick = (e)=>{ e.preventDefault(); openSettings(); };
+document.getElementById('manageTokenLink').onclick = function(e){ e.preventDefault(); openSettings(); };
 document.getElementById('sCancel').onclick = closeSettings;
-document.getElementById('settingsOv').onclick = (e)=>{ if(e.target.id==='settingsOv') closeSettings(); };
+document.getElementById('settingsOv').onclick = function(e){ if(e.target.id==='settingsOv') closeSettings(); };
 
-document.getElementById('sTest').onclick = async ()=>{
+document.getElementById('sTest').onclick = async function(){
   readSettingsForm();
   const res = document.getElementById('s_testResult');
-  res.className='test-result'; res.textContent='Testing…'; res.style.display='block';
+  res.className='test-result info'; res.textContent='Testing…'; res.style.display='block';
   try{
     await ghTestConnection();
-    res.className='test-result ok'; res.textContent='✓ Connected successfully to '+ghCfg.repo+' on branch "'+ghCfg.branch+'"';
+    res.className='test-result ok';
+    res.textContent='✓ Connected successfully to '+ghCfg.repo+' on branch "'+ghCfg.branch+'"';
   }catch(e){
-    res.className='test-result bad'; res.textContent='✗ '+e.message;
+    res.className='test-result bad';
+    res.textContent='✗ '+(e.message||e);
   }
 };
 
-document.getElementById('sSave').onclick = async ()=>{
+document.getElementById('sSave').onclick = async function(){
   readSettingsForm();
   if(!ghCfg.token || !ghCfg.repo){ toast('⚠ Token and repository are required'); return; }
   saveGhCfg();
@@ -837,22 +891,23 @@ document.getElementById('sSave').onclick = async ()=>{
     setGhStatus('connected','Connected to GitHub');
     toast('✓ GitHub settings saved');
     closeSettings();
-    // Initial push so the remote file exists
     ghPushData();
   }catch(e){
-    setGhStatus('warning','GitHub Sync Warning — '+e.message);
-    toast('⚠ Saved, but connection failed: '+e.message);
+    setGhStatus('warning','GitHub Sync Warning — '+(e.message||e));
+    const res = document.getElementById('s_testResult');
+    res.className='test-result bad';
+    res.textContent='✗ Saved, but connection failed: '+(e.message||e);
   }
 };
 
-document.getElementById('sPull').onclick = ()=>{
+document.getElementById('sPull').onclick = function(){
   readSettingsForm(); saveGhCfg();
   if(confirm('Pull contacts from GitHub? This will REPLACE your local contacts with the remote version.')){
     closeSettings(); ghPullData();
   }
 };
 
-document.getElementById('sClear').onclick = ()=>{
+document.getElementById('sClear').onclick = function(){
   if(confirm('Clear the saved GitHub token and disconnect?')){
     ghCfg = {token:'',repo:'',branch:'main',file:'contacts.json',auto:true};
     saveGhCfg();
@@ -862,14 +917,13 @@ document.getElementById('sClear').onclick = ()=>{
   }
 };
 
-/* ---- on load: restore status from saved config ---- */
 (async function initGithub(){
-  if(ghCfg.token && ghCfg.repo){
+  if(clean(ghCfg.token) && cleanRepo(ghCfg.repo)){
     try{
       await ghTestConnection();
       setGhStatus('connected','Connected to GitHub');
     }catch(e){
-      setGhStatus('warning','GitHub Sync Warning — '+e.message);
+      setGhStatus('warning','GitHub Sync Warning — '+(e.message||e));
     }
   } else {
     setGhStatus('disconnected','Not Connected to GitHub');

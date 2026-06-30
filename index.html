@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Microsoft Contacts — MANCO Dashboard · Build 11 (30 Jun 2026)</title>
+<title>Microsoft Contacts — MANCO Dashboard · Build 10 (23 Jun 2026)</title>
 <style>
   :root{
     --bg:#f3f4f6; --panel:#ffffff; --ink:#1f2937; --muted:#6b7280;
@@ -174,30 +174,6 @@
   @media(max-width:700px){#ghCorner{position:static;padding:8px 16px 0;justify-content:flex-end}}
   }
 
-
-/* === New "Connect to GitHub" token modal (Build 11) === */
-#ovGhToken .modal{max-width:420px;border-radius:14px;overflow:hidden;padding:0;box-shadow:0 25px 60px rgba(0,0,0,.35)}
-#ovGhToken .gt-head{background:linear-gradient(135deg,#0b2540 0%,#0e4a7a 55%,#1373b3 100%);color:#fff;padding:22px 24px 20px}
-#ovGhToken .gt-head h2{margin:0 0 6px;font-size:18px;font-weight:600;display:flex;align-items:center;gap:9px;border:none;padding:0;color:#fff;background:transparent}
-#ovGhToken .gt-head .gt-sub{font-size:13px;opacity:.88;line-height:1.45;margin:0}
-#ovGhToken .gt-body{padding:22px 24px 4px;background:#fff}
-#ovGhToken .gt-body label{display:block;font-size:11px;font-weight:700;letter-spacing:.07em;color:#6b7280;text-transform:uppercase;margin-bottom:8px}
-#ovGhToken .gt-body input{width:100%;padding:11px 13px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;outline:none;letter-spacing:.06em;transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
-#ovGhToken .gt-body input:focus{border-color:#0e4a7a;box-shadow:0 0 0 3px rgba(14,74,122,.15)}
-#ovGhToken .gt-note{font-size:12px;color:#6b7280;margin:14px 0 18px;line-height:1.5}
-#ovGhToken .gt-note a{color:#0e4a7a;font-weight:600;text-decoration:none}
-#ovGhToken .gt-note a:hover{text-decoration:underline}
-#ovGhToken .gt-foot{display:flex;justify-content:flex-end;gap:8px;padding:4px 24px 22px;background:#fff;border:none}
-#ovGhToken .gt-foot .btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;font-family:inherit;transition:.12s}
-#ovGhToken .gt-foot .btn:hover{background:#f3f4f6}
-#ovGhToken .gt-foot .btn.primary{background:#0e4a7a;border-color:#0e4a7a;color:#fff}
-#ovGhToken .gt-foot .btn.primary:hover{background:#0b3a61}
-#ovGhToken .gt-status-mini{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b7280;padding:0 24px 14px;background:#fff}
-#ovGhToken .gt-status-mini .dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}
-#ovGhToken .gt-status-mini.green .dot{background:#16a34a}
-#ovGhToken .gt-status-mini.yellow .dot{background:#eab308}
-#ovGhToken .gt-status-mini.red .dot{background:#dc2626}
-
 </style>
 </head>
 <body>
@@ -209,6 +185,7 @@
 
   <div class="hero-mid">
     <h1>Microsoft Contacts</h1>
+    <div class="sub">MANCO Dashboard</div>
   </div>
 </header>
 
@@ -286,28 +263,6 @@
   </div>
 </div>
 
-
-<!-- NEW: Connect to GitHub token modal (Build 11) -->
-<div class="ov" id="ovGhToken">
-  <div class="modal">
-    <div class="gt-head">
-      <h2>🔑 Connect to GitHub</h2>
-      <p class="gt-sub">Paste your GitHub Personal Access Token to enable cloud sync.</p>
-    </div>
-    <div class="gt-body">
-      <label for="ghTokenInput">Personal Access Token</label>
-      <input type="password" id="ghTokenInput" placeholder="ghp_••••••••••••••••••••••••" autocomplete="off" spellcheck="false">
-      <p class="gt-note">
-        Your token is stored only in your browser (localStorage) and is never written into the HTML file. It is used to commit dispatch updates back to <a href="https://github.com/4Sightholdings/SS-Marketing-Inventory" target="_blank" rel="noopener">4Sightholdings/SS-Marketing-Inventory</a>.
-      </p>
-    </div>
-    <div class="gt-status-mini grey" id="ghTokenStatus"><span class="dot"></span><span id="ghTokenStatusText">No token saved</span></div>
-    <div class="gt-foot">
-      <button class="btn" type="button" id="ghTokenCancel">Cancel</button>
-      <button class="btn primary" type="button" id="ghTokenSave">Save</button>
-    </div>
-  </div>
-</div>
 
 <!-- GitHub Cloud Sync modal -->
 <div class="ov" id="ovGh">
@@ -807,42 +762,7 @@ function ghInit(){
   }
 }
 // wiring
-// New token-first flow (Build 11)
-function ghOpenToken(){
-  const cfg=ghLoad();
-  document.getElementById('ghTokenInput').value=cfg.token||'';
-  updateTokenStatus(cfg.token);
-  document.getElementById('ovGhToken').classList.add('show');
-  setTimeout(()=>{const i=document.getElementById('ghTokenInput'); if(i) i.focus();},40);
-}
-function ghCloseToken(){ document.getElementById('ovGhToken').classList.remove('show'); }
-function updateTokenStatus(token){
-  const wrap=document.getElementById('ghTokenStatus');
-  const txt=document.getElementById('ghTokenStatusText');
-  if(!wrap||!txt) return;
-  wrap.classList.remove('green','yellow','red','grey');
-  if(!token){ wrap.classList.add('grey'); txt.textContent='No token saved'; }
-  else { wrap.classList.add('yellow'); txt.textContent='Token saved locally (untested)'; }
-}
-function ghSaveTokenNew(){
-  const t=document.getElementById('ghTokenInput').value.trim();
-  if(!t){ toast('⚠ Please paste a token first'); return; }
-  const cfg=ghLoad();
-  cfg.token=t;
-  if(!cfg.file) cfg.file='manco-microsoft-contacts.json';
-  ghSave(cfg);
-  const legacy=document.getElementById('gh_token'); if(legacy) legacy.value=t;
-  updateTokenStatus(t);
-  ghSetStatus('saved','Token saved – not tested');
-  toast('✓ Token saved locally');
-  ghCloseToken();
-}
-document.getElementById('ghBtn').onclick=ghOpenToken;
-document.getElementById('ghTokenCancel').onclick=ghCloseToken;
-document.getElementById('ghTokenSave').onclick=ghSaveTokenNew;
-document.getElementById('ovGhToken').onclick=e=>{ if(e.target.id==='ovGhToken') ghCloseToken(); };
-// Keep ghOpen() (the advanced gist/push/pull modal) accessible via Ctrl+Shift+G
-document.addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&(e.key==='G'||e.key==='g')){ e.preventDefault(); ghOpen(); }});
+document.getElementById('ghBtn').onclick=ghOpen;
 document.getElementById('gh_close').onclick=ghClose;
 document.getElementById('gh_save').onclick=ghSaveToken;
 document.getElementById('gh_test').onclick=ghTest;
